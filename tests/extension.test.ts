@@ -9,11 +9,21 @@ import { Playbook, AGENTS_PREFERENCES_ID } from '../src/core/schema.js';
 describe('Gentle Playbook Extension Hooks', () => {
   let tempDir: string;
   let originalEnv: string | undefined;
+  // El flujo de extract invoca CodeGraph de verdad: si el binario real está
+  // instalado, cada test paga el indexado del proyecto y el archivo entero se
+  // vuelve lento y dependiente del entorno (basta con que falte en la máquina
+  // o haya carga en paralelo para que se pase del timeout). Se apunta a un
+  // binario inexistente — el mismo aislamiento que ya usa
+  // `tests/context-collector.test.ts` — para que `isAvailable()` resuelva
+  // `false` de inmediato y el flujo siga sin CodeGraph.
+  let originalCodegraphBin: string | undefined;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gentle-extension-test-'));
     originalEnv = process.env.GENTLE_PLAYBOOK_DIR;
     process.env.GENTLE_PLAYBOOK_DIR = tempDir;
+    originalCodegraphBin = process.env.CODEGRAPH_BIN;
+    process.env.CODEGRAPH_BIN = '/bin/non-existent-codegraph-bin';
   });
 
   afterEach(async () => {
@@ -21,6 +31,11 @@ describe('Gentle Playbook Extension Hooks', () => {
       process.env.GENTLE_PLAYBOOK_DIR = originalEnv;
     } else {
       delete process.env.GENTLE_PLAYBOOK_DIR;
+    }
+    if (originalCodegraphBin !== undefined) {
+      process.env.CODEGRAPH_BIN = originalCodegraphBin;
+    } else {
+      delete process.env.CODEGRAPH_BIN;
     }
     await fs.rm(tempDir, { recursive: true, force: true });
   });
